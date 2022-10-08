@@ -3,7 +3,7 @@ import { DirectionType, operMap, PlayerInfoType } from "./types";
 import { UrlOfApi } from "./constants";
 import { sleep } from "../utils";
 import * as fs from "fs";
-import path from "path";
+import path, { dirname } from "path";
 
 export class Player {
   page: Page;
@@ -158,13 +158,11 @@ export class Player {
     );
     console.log("操作序列", this.operList);
 
-    // 创建文件夹用于存放截图
-    const dirName = `${res.game.a_id}_${res.game.b_id}_${this.id}_${new Date()
-      .getTime()
-      .toString()
-      .slice(-5)}`;
-    const dirPath = path.join(__dirname, `../../result/${dirName}`);
-    fs.mkdirSync(dirPath);
+    // 创建文件夹用于存放截图（删除原有记录）
+    const resDirPath = path.join(__dirname, "../../temp");
+    const dirName = `id-${this.id}`;
+    const dirPath = path.join(resDirPath, dirName);
+    fs.mkdirSync(dirPath, { recursive: true });
     this.picPath = dirPath;
 
     console.log("匹配成功，对战开始");
