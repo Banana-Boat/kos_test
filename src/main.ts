@@ -24,6 +24,6 @@ export const main = async (playerInfo: PlayerInfoType) => {
   } finally {
     setTimeout(() => {
       browser.close();
-    }, 10000);
+    }, 8000);
   }
 };
