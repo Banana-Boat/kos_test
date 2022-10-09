@@ -1,7 +1,8 @@
 import pixelmatch from "pixelmatch";
-import { PNG, PNGWithMetadata } from "pngjs";
+import { PNG } from "pngjs";
 import path from "path";
 import fs from "fs";
+import ejs from "ejs";
 
 interface IDiffLog {
   eachPlayer: {
@@ -12,6 +13,7 @@ interface IDiffLog {
   totalStep: number;
 }
 
+// 测试单个玩家相邻回合间的差异
 const testEachPlayer = (
   inputDirPath: string,
   total: number,
@@ -41,7 +43,7 @@ const testEachPlayer = (
     );
 
     fs.writeFileSync(
-      path.join(outputDirPath, `${i}.png`),
+      path.join(outputDirPath, `${i - 1}.png`),
       PNG.sync.write(outputImg)
     );
     result.push(`${((diff / pixelTotal) * 100).toPrecision(3)}%`);
@@ -52,20 +54,58 @@ const testEachPlayer = (
   return result;
 };
 
+// 生成检测报告
+const generateReport = (
+  diffLog: IDiffLog,
+  imgDirPath1: string,
+  imgDirPath2: string,
+  diffImgPathOfEachStep: string,
+  diffImgPath1: string,
+  diffImgPath2: string
+) => {
+  const list = new Array<string>(diffLog.totalStep).fill("");
+  const _list = new Array<string>(diffLog.totalStep - 1).fill("");
+
+  const imgList1 = list.map((_, idx) => path.join(imgDirPath1, `${idx}.png`));
+  const imgList2 = list.map((_, idx) => path.join(imgDirPath2, `${idx}.png`));
+  const diffImgListOfEachStep = list.map((_, idx) =>
+    path.join(diffImgPathOfEachStep, `${idx}.png`)
+  );
+  const diffImgList1 = _list.map((_, idx) =>
+    path.join(diffImgPath1, `${idx}.png`)
+  );
+  const diffImgList2 = _list.map((_, idx) =>
+    path.join(diffImgPath2, `${idx}.png`)
+  );
+
+  const templateStr = fs
+    .readFileSync(path.join(__dirname, "template.ejs"))
+    .toString();
+  const reportStr = ejs.render(templateStr, {
+    diffLog: diffLog,
+    imgList1: imgList1,
+    imgList2: imgList2,
+    diffImgListOfEachStep: diffImgListOfEachStep,
+    diffImgList1: diffImgList1,
+    diffImgList2: diffImgList2,
+  });
+  return reportStr;
+};
+
 (() => {
   try {
-    const resDirPath = path.join(__dirname, "../temp");
-    const resultDir = fs.readdirSync(resDirPath);
-    if (resultDir.find((name) => name === "diff"))
+    const tempDirPath = path.join(__dirname, "../temp");
+    const tempDir = fs.readdirSync(tempDirPath);
+    if (tempDir.find((name) => name === "diff"))
       throw new Error("请先清空缓存（删除 temp/diff 目录）");
 
-    const [dirname1, dirname2] = resultDir;
-    const dirPath1 = path.join(resDirPath, dirname1);
-    const dirPath2 = path.join(resDirPath, dirname2);
-    const imgTotal = fs.readdirSync(dirPath1).length;
+    const [imgDirName1, imgDirName2] = tempDir;
+    const imgDirPath1 = path.join(tempDirPath, imgDirName1);
+    const imgDirPath2 = path.join(tempDirPath, imgDirName2);
+    const imgTotal = fs.readdirSync(imgDirPath1).length;
 
-    const outputDirPath = path.join(resDirPath, "diff");
-    fs.mkdirSync(outputDirPath);
+    const diffDirPath = path.join(tempDirPath, "diff");
+    fs.mkdirSync(diffDirPath);
 
     const diffLog: IDiffLog = {
       eachPlayer: {
@@ -77,14 +117,14 @@ const testEachPlayer = (
     };
 
     // 检验两玩家每回合的差异
-    const eachStepDirPath = path.join(outputDirPath, "each-step");
-    fs.mkdirSync(eachStepDirPath);
+    const diffImgPathOfEachStep = path.join(diffDirPath, "each-step");
+    fs.mkdirSync(diffImgPathOfEachStep);
     for (let i = 0; i < imgTotal; i++) {
       const img1 = PNG.sync.read(
-        fs.readFileSync(path.join(dirPath1, `${i.toString()}.png`))
+        fs.readFileSync(path.join(imgDirPath1, `${i.toString()}.png`))
       );
       const img2 = PNG.sync.read(
-        fs.readFileSync(path.join(dirPath2, `${i.toString()}.png`))
+        fs.readFileSync(path.join(imgDirPath2, `${i.toString()}.png`))
       );
 
       const { width, height } = img1;
@@ -100,29 +140,45 @@ const testEachPlayer = (
       );
 
       fs.writeFileSync(
-        path.join(eachStepDirPath, `${i}.png`),
+        path.join(diffImgPathOfEachStep, `${i}.png`),
         PNG.sync.write(outputImg)
       );
       diffLog.eachStep.push(`${((diff / pixelTotal) * 100).toPrecision(3)}%`);
     }
 
     // 检测单个玩家相邻回合间的差异
+    const diffImgPath1 = path.join(diffDirPath, imgDirName1);
     diffLog.eachPlayer.player1 = testEachPlayer(
-      dirPath1,
+      imgDirPath1,
       imgTotal,
-      path.join(outputDirPath, dirname1)
+      diffImgPath1
     );
+    const diffImgPath2 = path.join(diffDirPath, imgDirName2);
     diffLog.eachPlayer.player2 = testEachPlayer(
-      dirPath2,
+      imgDirPath2,
       imgTotal,
-      path.join(outputDirPath, dirname2)
+      diffImgPath2
     );
 
     // 保存 diff 记录
     fs.writeFileSync(
-      path.join(outputDirPath, "diff-log.json"),
+      path.join(diffDirPath, "diff-log.json"),
       JSON.stringify(diffLog)
     );
+
+    // 生成检测报告，路径需要为result/report.html的相对路径
+    const reportHTML = generateReport(
+      diffLog,
+      `../temp/${imgDirName1}`,
+      `../temp/${imgDirName2}`,
+      `../temp/diff/each-step`,
+      `../temp/diff/${imgDirName1}`,
+      `../temp/diff/${imgDirName2}`
+    );
+    const resDirPath = path.join(__dirname, "../result");
+    if (!fs.existsSync(resDirPath)) fs.mkdirSync(resDirPath);
+    fs.writeFileSync(path.join(resDirPath, "report.html"), reportHTML);
+
     console.log("检测完毕，结果已保存至 result/report.html");
   } catch (err) {
     console.error(err);

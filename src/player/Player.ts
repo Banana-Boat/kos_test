@@ -159,9 +159,9 @@ export class Player {
     console.log("操作序列", this.operList);
 
     // 创建文件夹用于存放截图（删除原有记录）
-    const resDirPath = path.join(__dirname, "../../temp");
+    const tempDirPath = path.join(__dirname, "../../temp");
     const dirName = `id-${this.id}`;
-    const dirPath = path.join(resDirPath, dirName);
+    const dirPath = path.join(tempDirPath, dirName);
     fs.mkdirSync(dirPath, { recursive: true });
     this.picPath = dirPath;
 
@@ -175,7 +175,7 @@ export class Player {
     let res: any;
 
     do {
-      sleep(1000);
+      sleep(2000);
       await this.getCanvasScreenshot();
       const operation = this.operList[this.curStep];
       await this.page.keyboard.press(operMap.get(operation) as KeyInput);

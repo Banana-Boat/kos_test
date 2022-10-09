@@ -1,6 +1,6 @@
 # KOS_TEST
 
-> king_of_snake 蛇对战游戏的测试项目
+> king_of_snake 蛇对战游戏的自动化测试
 
 ### 项目初始化
 
